@@ -1,4 +1,5 @@
 import os
+import stat
 import unittest
 import shutil
 import time
@@ -54,7 +55,15 @@ class TestLocalProperties(unittest.TestCase):
         repo2_dir = str(os.path.dirname(os.path.abspath(__file__))) + os.sep + 'repos' + os.sep + 'repository2'
 
         if os.path.exists(project_dir):
-            shutil.rmtree(project_dir)
+            for root, dirs, files in os.walk(project_dir, topdown=False):
+                for name in files:
+                    filename = os.path.join(root, name)
+                    os.chmod(filename, stat.S_IWRITE)
+                    os.remove(filename)
+                for name in dirs:
+                    os.rmdir(os.path.join(root, name))
+            os.rmdir(project_dir)
+            # shutil.rmtree(project_dir)
 
         os.makedirs(project_dir)
 
@@ -141,7 +150,7 @@ class TestLocalProperties(unittest.TestCase):
 
     def test_commit_history(self):
         ch = self.projectd_1.commit_history(branch='master')
-        self.assertEqual(ch.shape[0], 12)
+        self.assertEqual(ch.shape[0], 12, msg=f'Got {ch.shape[0]}')
 
         # Will be deprecated in v2.0.0
 
@@ -152,10 +161,11 @@ class TestLocalProperties(unittest.TestCase):
         self.assertEqual(ch3.shape[0], 4)
 
         ch4 = self.projectd_1.commit_history(branch='master', days=5)
-        self.assertEqual(ch4.shape[0], 12)
+        self.assertEqual(ch4.shape[0], 12, f'Got {ch400
+                                                  .shape[0]}')
 
         fch = self.projectd_1.file_change_history(branch='master')
-        self.assertEqual(fch.shape[0], 12)
+        self.assertEqual(fch.shape[0], 12, f'Got {fch.shape[0]}')
 
         # Will be deprecated in v2.0.0
 

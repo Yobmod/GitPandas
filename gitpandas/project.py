@@ -56,7 +56,7 @@ class ProjectDirectory():
     def __init__(self, working_dir: Union[Sequence[str], Set[str]] = (),
                  ignore_repos: Sequence[str] = (),
                  verbose: bool = True,
-                 tmp_dir=None, cache_backend=None):
+                 tmp_dir: str = '', cache_backend=None):
         if not working_dir:
             self.repo_dirs = {x[0].split('.git')[0]
                               for x in os.walk(os.getcwd()) if '.git' in x[0]}
@@ -237,7 +237,7 @@ class ProjectDirectory():
 
         return df
 
-    def commit_history(self, branch, limit=None, days=None, ignore_globs=None, include_globs=None):
+    def commit_history(self, branch: str, limit: int = 0, days: int = 0, ignore_globs=None, include_globs=None):
         """
         Returns a pandas DataFrame containing all of the commits for a given branch. The results from all repositories
         are appended to each other, resulting in one large data frame of size <limit>.  If a limit is provided, it is
@@ -285,7 +285,7 @@ class ProjectDirectory():
 
         return df
 
-    def file_change_history(self, branch='master', limit=None, days=None, ignore_globs=None, include_globs=None):
+    def file_change_history(self, branch: str = 'master', limit: int = 0, days: int = 0, ignore_globs=None, include_globs=None):
         """
         Returns a DataFrame of all file changes (via the commit history) for the specified branch.  This is similar to
         the commit history DataFrame, but is one row per file edit rather than one row per commit (which may encapsulate
@@ -445,7 +445,7 @@ class ProjectDirectory():
 
         return df
 
-    def revs(self, branch='master', limit=None, skip=None, num_datapoints=None):
+    def revs(self, branch: str = 'master', limit: int = 0, skip: int = 0, num_datapoints: int = 0):
         """
         Returns a dataframe of all revision tags and their timestamps for each project. It will have the columns:
 

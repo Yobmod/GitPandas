@@ -1,5 +1,6 @@
 """."""
 
+import stat
 import os
 import sys
 import datetime
@@ -90,11 +91,19 @@ class Repository():
 
         :return:
         """
-        if self.__delete_hook:
-            if os.path.exists(self.coverage_file):
-                os.remove(self.coverage_file)
-            if os.path.exists(self.git_dir):
-                shutil.rmtree(self.git_dir)
+        if self.__delete_hook and os.path.exists(self.git_dir):
+            print("Deleting ###########################################################")
+
+            for root, dirs, files in os.walk(self.git_dir, topdown=False):
+                for name in files:
+                    filename = os.path.join(root, name)
+                    os.chmod(filename, stat.S_IWRITE)
+                    os.remove(filename)
+                    print("Deleting Files ###########################################################")
+                for name in dirs:
+                    os.rmdir(os.path.join(root, name))
+            os.rmdir(self.git_dir)
+            # shutil.rmtree(self.git_dir)
 
     def is_bare(self):
         """
@@ -343,7 +352,7 @@ class Repository():
         :param include_globs: (optinal, default=None) a list of globs to include, default of None includes everything.
         :return: DataFrame
         """
-        assert isinstance(limit, int) and limit > 0, "limit must be a positive integer"
+        assert isinstance(limit, int) and limit >= 0, f"limit must be a positive integer, got {limit}"
         # setup the dataset of commits
         if limit == 0 or limit is None:
             if days is None:

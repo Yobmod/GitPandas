@@ -198,7 +198,7 @@ class ProjectDirectory():
         :return: DataFrame
         """
 
-        if limit is not None:
+        if limit:
             limit = int(limit / len(self.repo_dirs))
 
         if committer:
@@ -265,7 +265,7 @@ class ProjectDirectory():
         :return: DataFrame
         """
 
-        if limit is not None:
+        if limit:
             limit = int(limit / len(self.repo_dirs))
 
         df = pd.DataFrame(columns=[
@@ -308,7 +308,7 @@ class ProjectDirectory():
         :return: DataFrame
         """
 
-        if limit is not None:
+        if limit:
             limit = int(limit / len(self.repo_dirs))
 
         df = pd.DataFrame(columns=['repository', 'date', 'author', 'committer',
@@ -463,10 +463,10 @@ class ProjectDirectory():
         :return: DataFrame
         """
 
-        if limit is not None:
+        if limit:
             limit = math.floor(float(limit) / len(self.repos))
 
-        if num_datapoints is not None:
+        if num_datapoints:
             num_datapoints = math.floor(
                 float(num_datapoints) / len(self.repos))
 
@@ -691,12 +691,12 @@ class ProjectDirectory():
                     df = df.append(repo.bus_factor(
                         ignore_globs=include_globs, include_globs=include_globs, by=by))
                 except GitCommandError:
-                    print('Warning! Repo: %s couldn\'t be inspected' % (repo, ))
+                    print(f'Warning! Repo: {repo} couldn\'t be inspected')
 
             df.reset_index()
             return df
 
-    def punchcard(self, branch: str = 'master', limit: int = 0, days: int = 0, by: str = '', normalize=None,
+    def punchcard(self, branch: str = 'master', limit: int = 0, days: int = 0, by: str = '', normalize: int = 0,
                   ignore_globs=None, include_globs=None):
         """
         Returns a pandas DataFrame containing all of the data for a punchcard.
@@ -742,7 +742,7 @@ class ProjectDirectory():
                 chunk['repository'] = repo.repo_name
                 df = df.append(chunk)
             except GitCommandError:
-                print('Warning! Repo: %s couldn\'t be inspected' % (repo, ))
+                print(f'Warning! Repo: {repo} couldn\'t be inspected')
 
         df.reset_index()
 
@@ -759,7 +759,7 @@ class ProjectDirectory():
         punch_card.reset_index(inplace=True)
 
         # normalize all cols
-        if normalize is not None:
+        if normalize:
             for col in ['lines', 'insertions', 'deletions', 'net']:
                 punch_card[col] = (punch_card[col] /
                                    punch_card[col].sum()) * normalize
@@ -768,7 +768,7 @@ class ProjectDirectory():
 
     def __del__(self) -> None:
         """
-        :return:
+        :return: None
         """
         for repo in self.repos:
             repo.__del__()

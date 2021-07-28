@@ -50,19 +50,18 @@ class Repository():
     :return:
     """
 
-    def __init__(self, working_dir: Union[str, None] = None, verbose=False, tmp_dir=None, cache_backend=None):
+    def __init__(self, working_dir: str = '', verbose=False, tmp_dir: str = '', cache_backend=None):
         self.verbose = verbose
         self.log = logging.getLogger('gitpandas')
         self.__delete_hook = False
-        self._git_repo_name = None
+        self._git_repo_name = ''
         self.cache_backend = cache_backend
-        if working_dir is not None:
+        if working_dir:
             if working_dir[:3] == 'git':
                 # if a tmp dir is passed, clone into that, otherwise make a temp directory.
                 if tmp_dir is None:
                     if self.verbose:
-                        print('cloning repository: %s into a temporary location' % (
-                            working_dir,))
+                        print(f'cloning repository: {working_dir} into a temporary location')
                     dir_path = tempfile.mkdtemp()
                 else:
                     dir_path = tmp_dir
@@ -614,20 +613,20 @@ class Repository():
 
         """
 
-        if limit is None and skip is None and num_datapoints is not None:
+        if not limit and not skip and num_datapoints:
             limit = sum(1 for _ in self.repo.iter_commits())
             skip = int(float(limit) / num_datapoints)
         else:
-            if limit is None:
+            if not limit:
                 limit = sys.maxsize
-            elif skip is not None:
+            elif not skip:
                 limit = limit * skip
 
         ds = [[x.committed_date, x.name_rev.split(
             ' ')[0]] for x in self.repo.iter_commits(branch, max_count=limit)]
         df = DataFrame(ds, columns=['date', 'rev'])
 
-        if skip is not None:
+        if not skip:
             if skip == 0:
                 skip = 1
 
@@ -822,11 +821,9 @@ class Repository():
     def _repo_name(self) -> str:
         """
         Returns the name of the repository, using the local directory name.
-
         :returns: str
         """
-
-        if self._git_repo_name is not None:
+        if self._git_repo_name:
             return self._git_repo_name
         else:
             reponame = str(self.repo.git_dir).split(os.sep)[-2]
@@ -1005,7 +1002,7 @@ class Repository():
         ch['hour_of_day'] = ch.index.map(lambda x: x.hour)
 
         aggs = ['hour_of_day', 'day_of_week']
-        if by is not None:
+        if by:
             aggs.append(by)
 
         punch_card = ch.groupby(aggs).agg({

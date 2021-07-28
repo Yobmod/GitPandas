@@ -11,26 +11,24 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='git-pandas',
+    name='GitPandas',
     version=VERSION,
     description='A utility for interacting with data from git repositories as Pandas dataframes',
     long_description=long_description,
     url='https://github.com/wdm0006/git-pandas',
-    download_url='https://github.com/wdm0006/git-pandas/tarball/' + VERSION,
+    download_url='https://github.com/yobmod/GitPandas/tarball/' + VERSION,
     license='BSD',
     classifiers=[
-      'Development Status :: 3 - Alpha',
-      'Intended Audience :: Developers',
-      'Programming Language :: Python :: 3',
+        'Development Status :: 3 - Alpha',
+        'Programming Language :: Python :: 3',
     ],
     keywords='git pandas data analysis',
     packages=find_packages(exclude=['tests*']),
     include_package_data=True,
-    author='Will McGinnis',
+    zip_safe=False,
     install_requires=[
-        'gitpython>=1.0.0',
-        'numpy>=1.9.0',
-        'pandas>=0.16.0'
+        'gitpython>=3.0.0',
+        'numpy>=1.19.0',
+        'pandas>=1.0.0'
     ],
-    author_email='will@pedalwrencher.com'
 )

@@ -26,6 +26,14 @@ warn_redundant_casts = true
 # warn_unreachable = True
 show_error_codes = true
 
+[[tool.mypy.overrides]]
+module = [
+    'pandas',
+    'numpy',
+    'git'
+]
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["gitpandas"]
 

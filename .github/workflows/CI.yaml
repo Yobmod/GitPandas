@@ -42,7 +42,7 @@ jobs:
     - name: Check types with mypy
       run: |
         set -x
-        mypy -p git
+        mypy -p gitpandas
 
     - name: Test with pytest
       run: |

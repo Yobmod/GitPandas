@@ -83,6 +83,8 @@ class Repository():
             print('Repository [%s] instantiated at directory: %s' % (
                 self._repo_name(), self.git_dir))
 
+        self.coverage_file = self.git_dir + os.sep + '.coverage'
+
     def __del__(self):
         """
         On delete, clean up any temporary repositories still hanging around
@@ -90,6 +92,8 @@ class Repository():
         :return:
         """
         if self.__delete_hook:
+            if os.path.exists(self.coverage_file):
+                os.remove(self.coverage_file)
             if os.path.exists(self.git_dir):
                 shutil.rmtree(self.git_dir)
 
@@ -110,9 +114,9 @@ class Repository():
 
         """
 
-        if os.path.exists(self.git_dir + os.sep + '.coverage'):
+        if self.coverage_file:
             try:
-                with open(self.git_dir + os.sep + '.coverage', 'r') as f:
+                with open(self.coverage_file, 'r') as f:
                     blob = f.read()
                     blob = blob.split('!')[2]
                     json.loads(blob)
@@ -140,24 +144,24 @@ class Repository():
         if not self.has_coverage():
             return DataFrame(columns=['filename', 'lines_covered', 'total_lines', 'coverage'])
 
-        with open(self.git_dir + os.sep + '.coverage', 'r') as f:
+        with open(self.coverage_file, 'r') as f:
             blob = f.read()
             blob = blob.split('!')[2]
             cov = json.loads(blob)
 
         ds = []
         for filename in cov['lines'].keys():
-            idx = 0
+            _i = 0
             try:
                 with open(filename, 'r') as f:
-                    for idx, _ in enumerate(f):
+                    for _i, _x in enumerate(f):
                         pass
             except FileNotFoundError:
                 if self.verbose:
                     warnings.warn(
                         'Could not find file %s for coverage' % (filename, ))
 
-            num_lines = idx + 1
+            num_lines = _i + 1
 
             try:
                 short_filename = filename.split(self.git_dir + os.sep)[1]
@@ -360,10 +364,7 @@ class Repository():
                 dlim = time.time() - days * 24 * 3600
                 while c_date > dlim:
                     try:
-                        if sys.version_info.major == 2:
-                            x = commits.next()
-                        else:
-                            x = commits.__next__()
+                        x = next(commits)
                     except StopIteration:
                         break
 
@@ -660,12 +661,8 @@ class Repository():
                          num_datapoints=num_datapoints)
 
         # get the commit history to stub out committers (hacky and slow)
-        if sys.version_info.major == 2:
-            committers = set([x.committer.name for x in self.repo.iter_commits(
-                branch, max_count=sys.maxsize)])
-        else:
-            committers = {x.committer.name for x in self.repo.iter_commits(
-                branch, max_count=sys.maxsize)}
+        committers = {x.committer.name for x in self.repo.iter_commits(
+            branch, max_count=sys.maxsize)}
 
         for y in committers:
             revs[y] = 0
@@ -703,7 +700,7 @@ class Repository():
 
         # drop 0 rows
         keep_idx = []
-        committers = [x for x in revs.columns.values if x != 'date']
+        committers = {x for x in revs.columns.values if x != 'date'}
         for idx, row in revs.iterrows():
             if sum([row[x] for x in committers]) > 0:
                 keep_idx.append(idx)
@@ -791,13 +788,9 @@ class Repository():
         data = [[x.name, True] for x in list(local_branches)]
 
         # then the remotes
-        remote_branches = self.repo.git.branch(all=True).split('\n')
-        if sys.version_info.major == 2:
-            remote_branches = set([x.split('/')[-1]
-                                  for x in remote_branches if 'remotes' in x])
-        else:
-            remote_branches = {x.split('/')[-1]
-                               for x in remote_branches if 'remotes' in x}
+        remote_branches_list: List[str] = self.repo.git.branch(all=True).split('\n')
+        remote_branches = {x.split('/')[-1]
+                           for x in remote_branches_list if 'remotes' in x}
 
         data += [[x, False] for x in remote_branches]
 

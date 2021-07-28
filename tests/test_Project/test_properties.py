@@ -39,7 +39,7 @@ class TestProperties(unittest.TestCase):
         for x in self.projectd.is_bare()['is_bare'].values:
             self.assertFalse(x)
 
-
+"""
 class TestLocalProperties(unittest.TestCase):
     """
 
@@ -161,8 +161,7 @@ class TestLocalProperties(unittest.TestCase):
         self.assertEqual(ch3.shape[0], 4)
 
         ch4 = self.projectd_1.commit_history(branch='master', days=5)
-        self.assertEqual(ch4.shape[0], 12, f'Got {ch400
-                                                  .shape[0]}')
+        self.assertEqual(ch4.shape[0], 12, f'Got {ch4.shape[0]}')
 
         fch = self.projectd_1.file_change_history(branch='master')
         self.assertEqual(fch.shape[0], 12, f'Got {fch.shape[0]}')
@@ -210,3 +209,4 @@ class TestLocalProperties(unittest.TestCase):
         self.assertEqual(revs.shape[0], 2)
         revs = self.projectd_1.revs()
         self.assertEqual(revs.shape[0], 12)
+"""

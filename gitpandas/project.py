@@ -1,52 +1,48 @@
-"""
-.. module:: projectdirectory
-   :platform: Unix, Windows
-   :synopsis: A module for examining collections of git repositories as a whole
+"""."""
 
-.. moduleauthor:: Will McGinnis <will@pedalwrencher.com>
-
-
-"""
-
+import json
 import math
-import sys
 import os
 import numpy as np
 import pandas as pd
-import requests
-import warnings
 from git import GitCommandError
 from gitpandas.repository import Repository
 
 try:
-    from joblib import delayed, Parallel
+    from joblib import delayed, Parallel  # type: ignore
 
     _has_joblib = True
-except ImportError as e:
+except ImportError:
     _has_joblib = False
 
-__author__ = 'willmcginnis'
+# typing -----------------------------------------------------
+
+from typing import Dict, List, Sequence, Set, Union
+
+GithubJson = List[Dict[str, str]]
+# Union[str, int, bool, None, Dict]]]
 
 
 # Functions for joblib.
-def _branches_func(r):
+def _branches_func(r: Repository):
     return r.branches()
 
 
-def _revs_func(repo, branch, limit, skip, num_datapoints):
+def _revs_func(repo: Repository, branch: str, limit: int, skip: int, num_datapoints: int):
     return repo.revs(branch=branch, limit=limit, skip=skip, num_datapoints=num_datapoints)
 
 
-def _tags_func(repo):
+def _tags_func(repo: Repository) -> pd.DataFrame:  # -> IterableList[TagReference]:
     return repo.tags()
 
 
-class ProjectDirectory(object):
-    """
-    An object that refers to a directory full of git repositories, for bulk analysis.  It contains a collection of
+class ProjectDirectory():
+    """An object that refers to a directory full of git repositories, for bulk analysis.
+    It contains a collection of
     git-pandas repository objects, created by os.walk-ing a directory to file all child .git subdirectories.
 
-    :param working_dir: (optional, default=None), the working directory to search for repositories in, None for cwd, or an explicit list of directories containing git repositories
+    :param working_dir: (optional, default=None), the working directory to search for repositories in,
+        None for cwd, or an explicit list of directories containing git repositories
     :param ignore_repos: (optional, default=None), a list of directories to ignore when searching for git repos.
     :param verbose: (default=True), if True, will print out verbose logging to terminal
     :param verbose: optional, verbosity level of output, bool
@@ -54,39 +50,42 @@ class ProjectDirectory(object):
     :param cache_backend: optional, an instantiated cache backend from gitpandas.cache
     :return:
     """
-    def __init__(self, working_dir=None, ignore_repos=None, verbose=True, tmp_dir=None, cache_backend=None):
-        if working_dir is None:
-            self.repo_dirs = set([x[0].split('.git')[0] for x in os.walk(os.getcwd()) if '.git' in x[0]])
-        elif isinstance(working_dir, list):
+
+    def __init__(self, working_dir: Union[Sequence[str], Set[str]] = (),
+                 ignore_repos: Sequence[str] = (),
+                 verbose: bool = True,
+                 tmp_dir=None, cache_backend=None):
+        if not working_dir:
+            self.repo_dirs = {x[0].split('.git')[0]
+                              for x in os.walk(os.getcwd()) if '.git' in x[0]}
+        elif isinstance(working_dir, str):
+            self.repo_dirs = {x[0].split('.git')[0]
+                              for x in os.walk(working_dir) if '.git' in x[0]}
+        elif isinstance(working_dir, set):
             self.repo_dirs = working_dir
         else:
-            self.repo_dirs = set([x[0].split('.git')[0] for x in os.walk(working_dir) if '.git' in x[0]])
+            self.repo_dirs = set(working_dir)
 
-        self.repos = [Repository(r, verbose=verbose, tmp_dir=tmp_dir, cache_backend=cache_backend) for r in self.repo_dirs]
+        self.repos = [Repository(r, verbose=verbose, tmp_dir=tmp_dir, cache_backend=cache_backend)
+                      for r in self.repo_dirs]
 
-        if ignore_repos is not None:
-            self.repos = [x for x in self.repos if x.repo_name not in ignore_repos]
+        if ignore_repos:
+            self.repos = [
+                x for x in self.repos if x.repo_name not in ignore_repos]
 
-    def _repo_name(self):
-        warnings.warn('please use repo_name() now instead of _repo_name()', DeprecationWarning)
-        return self.repo_name()
-
-    def repo_name(self):
+    def repo_name(self) -> pd.DataFrame:
         """
         Returns a DataFrame of the repo names present in this project directory
-
         :return: DataFrame
-
         """
 
         ds = [[x.repo_name] for x in self.repos]
         df = pd.DataFrame(ds, columns=['repository'])
         return df
 
-    def is_bare(self):
+    def is_bare(self) -> pd.DataFrame:
         """
         Returns a dataframe of repo names and whether or not they are bare.
-
         :return: DataFrame
         """
 
@@ -94,10 +93,9 @@ class ProjectDirectory(object):
         df = pd.DataFrame(ds, columns=['repository', 'is_bare'])
         return df
 
-    def has_coverage(self):
+    def has_coverage(self) -> pd.DataFrame:
         """
         Returns a DataFrame of repo names and whether or not they have a .coverage file that can be parsed
-
         :return: DataFrame
         """
 
@@ -105,10 +103,9 @@ class ProjectDirectory(object):
         df = pd.DataFrame(ds, columns=['repository', 'has_coverage'])
         return df
 
-    def coverage(self):
+    def coverage(self) -> pd.DataFrame:
         """
         Will return a DataFrame with coverage information (if available) for each repo in the project).
-
         If there is a .coverage file available, this will attempt to form a DataFrame with that information in it, which
         will contain the columns:
 
@@ -119,11 +116,10 @@ class ProjectDirectory(object):
          * coverage
 
         If it can't be found or parsed, an empty DataFrame of that form will be returned.
-
         :return: DataFrame
         """
-
-        df = pd.DataFrame(columns=['filename', 'lines_covered', 'total_lines', 'coverage', 'repository'])
+        df = pd.DataFrame(
+            columns=['filename', 'lines_covered', 'total_lines', 'coverage', 'repository'])
 
         for repo in self.repos:
             try:
@@ -134,10 +130,10 @@ class ProjectDirectory(object):
                 print('Warning! Repo: %s seems to not have coverage' % (repo, ))
 
         df.reset_index()
-
         return df
 
-    def file_change_rates(self, branch='master', limit=None, coverage=False, days=None, ignore_globs=None, include_globs=None):
+    def file_change_rates(self, branch: str = 'master', limit: int = 0,
+                          coverage: bool = False, days: int = 0, ignore_globs=None, include_globs=None):
         """
         This function will return a DataFrame containing some basic aggregations of the file change history data, and
         optionally test coverage data from a coverage_data.py .coverage file.  The aim here is to identify files in the
@@ -145,7 +141,7 @@ class ProjectDirectory(object):
         a high change rate and poor test coverage, then it is a great candidate for writing more tests.
 
         :param branch: (optional, default=master) the branch to return commits for
-        :param limit: (optional, default=None) a maximum number of commits to return, None for no limit
+        :param limit: (optional, default=0) a maximum number of commits to return, 0 for no limit
         :param coverage: (optional, default=False) a bool for whether or not to attempt to join in coverage data.
         :param days: (optional, default=None) number of days to return if limit is None
         :param ignore_globs: (optional, default=None) a list of globs to ignore, default none excludes nothing
@@ -153,7 +149,8 @@ class ProjectDirectory(object):
         :return: DataFrame
         """
 
-        columns = ['unique_committers', 'abs_rate_of_change', 'net_rate_of_change', 'net_change', 'abs_change', 'edit_rate', 'repository']
+        columns = ['unique_committers', 'abs_rate_of_change', 'net_rate_of_change',
+                   'net_change', 'abs_change', 'edit_rate', 'repository']
         if coverage:
             columns += ['lines_covered', 'total_lines', 'coverage']
         df = pd.DataFrame(columns=columns)
@@ -171,22 +168,26 @@ class ProjectDirectory(object):
                 fcr['repository'] = repo.repo_name
                 df = df.append(fcr)
             except GitCommandError:
-                print('Warning! Repo: %s seems to not have the branch: %s' % (repo, branch))
+                print('Warning! Repo: %s seems to not have the branch: %s' %
+                      (repo, branch))
 
         df.reset_index()
 
         return df
 
-    def hours_estimate(self, branch='master', grouping_window=0.5, single_commit_hours=0.5, limit=None, days=None, committer=True, by=None, ignore_globs=None, include_globs=None):
+    def hours_estimate(self, branch: str = 'master', grouping_window: float = 0.5, single_commit_hours: float = 0.5,
+                       limit: int = 0, days: int = 0, committer: bool = True, by: str = '',
+                       ignore_globs=None, include_globs=None):
         """
-        inspired by: https://github.com/kimmobrunfeldt/git-hours/blob/8aaeee237cb9d9028e7a2592a25ad8468b1f45e4/index.js#L114-L143
+        https://github.com/kimmobrunfeldt/git-hours/blob/8aaeee237cb9d9028e7a2592a25ad8468b1f45e4/index.js#L114-L143
 
         Iterates through the commit history of repo to estimate the time commitement of each author or committer over
         the course of time indicated by limit/extensions/days/etc.
 
         :param branch: the branch to return commits for
         :param limit: (optional, default=None) a maximum number of commits to return, None for no limit
-        :param grouping_window: (optional, default=0.5 hours) the threhold for how close two commits need to be to consider them part of one coding session
+        :param grouping_window: (optional, default=0.5 hours) the threhold for how close two commits need to
+            be to consider them part of one coding session
         :param single_commit_hours: (optional, default 0.5 hours) the time range to associate with one single commit
         :param days: (optional, default=None) number of days to return, if limit is None
         :param committer: (optional, default=True) whether to use committer vs. author
@@ -220,7 +221,8 @@ class ProjectDirectory(object):
                 ch['repository'] = repo.repo_name
                 df = df.append(ch)
             except GitCommandError:
-                print('Warning! Repo: %s seems to not have the branch: %s' % (repo, branch))
+                print('Warning! Repo: %s seems to not have the branch: %s' %
+                      (repo, branch))
 
         df.reset_index()
 
@@ -264,15 +266,18 @@ class ProjectDirectory(object):
         if limit is not None:
             limit = int(limit / len(self.repo_dirs))
 
-        df = pd.DataFrame(columns=['author', 'committer', 'message', 'lines', 'insertions', 'deletions', 'net'])
+        df = pd.DataFrame(columns=[
+                          'author', 'committer', 'message', 'lines', 'insertions', 'deletions', 'net'])
 
         for repo in self.repos:
             try:
-                ch = repo.commit_history(branch, limit=limit, days=days, ignore_globs=ignore_globs, include_globs=include_globs)
+                ch = repo.commit_history(
+                    branch, limit=limit, days=days, ignore_globs=ignore_globs, include_globs=include_globs)
                 ch['repository'] = repo.repo_name
                 df = df.append(ch)
             except GitCommandError:
-                print('Warning! Repo: %s seems to not have the branch: %s' % (repo, branch))
+                print('Warning! Repo: %s seems to not have the branch: %s' %
+                      (repo, branch))
 
         df.reset_index()
 
@@ -304,7 +309,8 @@ class ProjectDirectory(object):
         if limit is not None:
             limit = int(limit / len(self.repo_dirs))
 
-        df = pd.DataFrame(columns=['repository', 'date', 'author', 'committer', 'message', 'rev', 'filename', 'insertions', 'deletions'])
+        df = pd.DataFrame(columns=['repository', 'date', 'author', 'committer',
+                          'message', 'rev', 'filename', 'insertions', 'deletions'])
 
         for repo in self.repos:
             try:
@@ -318,7 +324,8 @@ class ProjectDirectory(object):
                 ch['repository'] = repo.repo_name
                 df = df.append(ch)
             except GitCommandError:
-                print('Warning! Repo: %s seems to not have the branch: %s' % (repo, branch))
+                print('Warning! Repo: %s seems to not have the branch: %s' %
+                      (repo, branch))
 
         df.reset_index()
 
@@ -326,8 +333,10 @@ class ProjectDirectory(object):
 
     def blame(self, committer=True, by='repository', ignore_globs=None, include_globs=None):
         """
-        Returns the blame from the current HEAD of the repositories as a DataFrame.  The DataFrame is grouped by committer
-        name, so it will be the sum of all contributions to all repositories by each committer. As with the commit history
+        Returns the blame from the current HEAD of the repositories as a DataFrame.  The DataFrame is grouped by
+        committer
+        name, so it will be the sum of all contributions to all repositories by each committer. As with the commit
+        history
         method, extensions and ignore_dirs parameters can be passed to exclude certain directories, or focus on certain
         file extensions. The DataFrame will have the columns:
 
@@ -346,12 +355,13 @@ class ProjectDirectory(object):
         for repo in self.repos:
             try:
                 if df is None:
-                    df = repo.blame(committer=committer, by=by, ignore_globs=ignore_globs, include_globs=include_globs)
+                    df = repo.blame(
+                        committer=committer, by=by, ignore_globs=ignore_globs, include_globs=include_globs)
                 else:
-                    df = df.append(repo.blame(committer=committer, by=by, ignore_globs=ignore_globs, include_globs=include_globs))
-            except GitCommandError as err:
+                    df = df.append(repo.blame(
+                        committer=committer, by=by, ignore_globs=ignore_globs, include_globs=include_globs))
+            except GitCommandError:
                 print('Warning! Repo: %s couldnt be blamed' % (repo, ))
-                pass
 
         df = df.reset_index(level=1)
         df = df.reset_index(level=1)
@@ -386,10 +396,12 @@ class ProjectDirectory(object):
         for repo in self.repos:
             try:
                 if df is None:
-                    df = repo.file_detail(ignore_globs=ignore_globs, include_globs=include_globs, committer=committer, rev=rev)
+                    df = repo.file_detail(
+                        ignore_globs=ignore_globs, include_globs=include_globs, committer=committer, rev=rev)
                     df['repository'] = repo.repo_name
                 else:
-                    chunk = repo.file_detail(ignore_globs=ignore_globs, include_globs=include_globs, committer=committer, rev=rev)
+                    chunk = repo.file_detail(
+                        ignore_globs=ignore_globs, include_globs=include_globs, committer=committer, rev=rev)
                     chunk['repository'] = repo.repo_name
                     df = df.append(chunk)
             except GitCommandError:
@@ -440,8 +452,10 @@ class ProjectDirectory(object):
 
         :param branch: (optional, default 'master') the branch to work in
         :param limit: (optional, default None), the maximum number of revisions to return, None for no limit
-        :param skip: (optional, default None), the number of revisions to skip. Ex: skip=2 returns every other revision, None for no skipping.
-        :param num_datapoints: (optional, default=None) if limit and skip are none, and this isn't, then num_datapoints evenly spaced revs will be used
+        :param skip: (optional, default None), the number of revisions to skip. Ex: skip=2 returns every other revision,
+            None for no skipping.
+        :param num_datapoints: (optional, default=None) if limit and skip are none, and this isn't, then num_datapoints
+            evenly spaced revs will be used
 
         :return: DataFrame
         """
@@ -450,7 +464,8 @@ class ProjectDirectory(object):
             limit = math.floor(float(limit) / len(self.repos))
 
         if num_datapoints is not None:
-            num_datapoints = math.floor(float(num_datapoints) / len(self.repos))
+            num_datapoints = math.floor(
+                float(num_datapoints) / len(self.repos))
 
         df = pd.DataFrame(columns=['repository', 'rev'])
 
@@ -464,7 +479,8 @@ class ProjectDirectory(object):
         else:
             for repo in self.repos:
                 try:
-                    revs = repo.revs(branch=branch, limit=limit, skip=skip, num_datapoints=num_datapoints)
+                    revs = repo.revs(branch=branch, limit=limit,
+                                     skip=skip, num_datapoints=num_datapoints)
                     revs['repository'] = repo.repo_name
                     df = df.append(revs)
                 except GitCommandError:
@@ -474,7 +490,8 @@ class ProjectDirectory(object):
 
         return df
 
-    def cumulative_blame(self, branch='master', by='committer', limit=None, skip=None, num_datapoints=None, committer=True, ignore_globs=None, include_globs=None):
+    def cumulative_blame(self, branch='master', by='committer', limit=None, skip=None,
+                         num_datapoints=None, committer=True, ignore_globs=None, include_globs=None):
         """
         Returns a time series of cumulative blame for a collection of projects.  The goal is to return a dataframe for a
         collection of projects with the LOC attached to an entity at each point in time. The returned dataframe can be
@@ -486,8 +503,10 @@ class ProjectDirectory(object):
 
         :param branch: (optional, default 'master') the branch to work in
         :param limit: (optional, default None), the maximum number of revisions to return, None for no limit
-        :param skip: (optional, default None), the number of revisions to skip. Ex: skip=2 returns every other revision, None for no skipping.
-        :param num_datapoints: (optional, default=None) if limit and skip are none, and this isn't, then num_datapoints evenly spaced revs will be used
+        :param skip: (optional, default None), the number of revisions to skip.
+            Ex: skip=2 returns every other revision, None for no skipping.
+        :param num_datapoints: (optional, default=None) if limit and skip are none, and this isn't,
+            then num_datapoints evenly spaced revs will be used
         :param committer: (optional, default=True) true if committer should be reported, false if author
         :param by: (optional, default='committer') whether to arrange the output by committer or project
         :param ignore_globs: (optional, default=None) a list of globs to ignore, default none excludes nothing
@@ -514,43 +533,43 @@ class ProjectDirectory(object):
                 pass
 
         global_blame = blames[0][1]
-        global_blame.columns = [x + '__' + str(blames[0][0]) for x in global_blame.columns.values]
+        global_blame.columns = [
+            x + '__' + str(blames[0][0]) for x in global_blame.columns.values]
         blames = blames[1:]
         for reponame, blame in blames:
             blame.columns = [x + '__' + reponame for x in blame.columns.values]
-            global_blame = pd.merge(global_blame, blame, left_index=True, right_index=True, how='outer')
+            global_blame = pd.merge(
+                global_blame, blame, left_index=True, right_index=True, how='outer')
 
         global_blame.fillna(method='pad', inplace=True)
         global_blame.fillna(0.0, inplace=True)
 
         if by == 'committer':
-            committers = [(str(x).split('__')[0].lower().strip(), x) for x in global_blame.columns.values]
+            committers = [(str(x).split('__')[0].lower().strip(), x)
+                          for x in global_blame.columns.values]
 
-            if sys.version_info.major == 2:
-                committer_mapping = dict([(c, [x[1] for x in committers if x[0] == c]) for c in set([x[0] for x in committers])])
-            else:
-                committer_mapping = {c: [x[1] for x in committers if x[0] == c] for c in {x[0] for x in committers}}
+            committer_mapping = {c: [x[1] for x in committers if x[0] == c] for c in {x[0] for x in committers}}
 
             for committer in committer_mapping.keys():
                 global_blame[committer] = 0
                 for col in committer_mapping.get(committer, []):
                     global_blame[committer] += global_blame[col]
 
-            global_blame = global_blame.reindex(columns=list(committer_mapping.keys()))
+            global_blame = global_blame.reindex(
+                columns=list(committer_mapping.keys()))
         elif by == 'project':
-            projects = [(str(x).split('__')[1].lower().strip(), x) for x in global_blame.columns.values]
+            projects = [(str(x).split('__')[1].lower().strip(), x)
+                        for x in global_blame.columns.values]
 
-            if sys.version_info.major == 2:
-                project_mapping = dict([(c, [x[1] for x in projects if x[0] == c]) for c in set([x[0] for x in projects])])
-            else:
-                project_mapping = {c: [x[1] for x in projects if x[0] == c] for c in {x[0] for x in projects}}
+            project_mapping = {c: [x[1] for x in projects if x[0] == c] for c in {x[0] for x in projects}}
 
             for project in project_mapping.keys():
                 global_blame[project] = 0
                 for col in project_mapping.get(project, []):
                     global_blame[project] += global_blame[col]
 
-            global_blame = global_blame.reindex(columns=list(project_mapping.keys()))
+            global_blame = global_blame.reindex(
+                columns=list(project_mapping.keys()))
 
         global_blame = global_blame[~global_blame.index.duplicated()]
 
@@ -646,7 +665,8 @@ class ProjectDirectory(object):
         if by == 'file':
             raise NotImplementedError('File-wise bus factor')
         elif by == 'projectd':
-            blame = self.blame(ignore_globs=ignore_globs, include_globs=include_globs, by='repository')
+            blame = self.blame(ignore_globs=ignore_globs,
+                               include_globs=include_globs, by='repository')
             blame = blame.sort_values(by=['loc'], ascending=False)
 
             total = blame['loc'].sum()
@@ -663,14 +683,16 @@ class ProjectDirectory(object):
             df = pd.DataFrame(columns=['repository', 'bus factor'])
             for repo in self.repos:
                 try:
-                    df = df.append(repo.bus_factor(ignore_globs=include_globs, include_globs=include_globs, by=by))
+                    df = df.append(repo.bus_factor(
+                        ignore_globs=include_globs, include_globs=include_globs, by=by))
                 except GitCommandError:
                     print('Warning! Repo: %s couldn\'t be inspected' % (repo, ))
 
             df.reset_index()
             return df
 
-    def punchcard(self, branch='master', limit=None, days=None, by=None, normalize=None, ignore_globs=None, include_globs=None):
+    def punchcard(self, branch: str = 'master', limit: int = 0, days: int = 0, by: str = '', normalize=None,
+                  ignore_globs=None, include_globs=None):
         """
         Returns a pandas DataFrame containing all of the data for a punchcard.
 
@@ -685,8 +707,10 @@ class ProjectDirectory(object):
         :param branch: the branch to return commits for
         :param limit: (optional, default=None) a maximum number of commits to return, None for no limit
         :param days: (optional, default=None) number of days to return, if limit is None
-        :param by: (optional, default=None) agg by options, None for no aggregation (just a high level punchcard), or 'committer', 'author', 'repository'
-        :param normalize: (optional, default=None) if an integer, returns the data normalized to max value of that (for plotting)
+        :param by: (optional, default=None) agg by options, None for no aggregation (just a high level punchcard),
+            or 'committer', 'author', 'repository'
+        :param normalize: (optional, default=None) if an integer,
+            returns the data normalized to max value of that (for plotting)
         :param ignore_globs: (optional, default=None) a list of globs to ignore, default none excludes nothing
         :param include_globs: (optinal, default=None) a list of globs to include, default of None includes everything.
         :return: DataFrame
@@ -695,7 +719,7 @@ class ProjectDirectory(object):
         df = pd.DataFrame()
 
         if by == 'repository':
-            repo_by = None
+            repo_by = ''
         else:
             repo_by = by
 
@@ -718,7 +742,7 @@ class ProjectDirectory(object):
         df.reset_index()
 
         aggs = ['hour_of_day', 'day_of_week']
-        if by is not None:
+        if by:
             aggs.append(by)
 
         punch_card = df.groupby(aggs).agg({
@@ -732,16 +756,15 @@ class ProjectDirectory(object):
         # normalize all cols
         if normalize is not None:
             for col in ['lines', 'insertions', 'deletions', 'net']:
-                punch_card[col] = (punch_card[col] / punch_card[col].sum()) * normalize
+                punch_card[col] = (punch_card[col] /
+                                   punch_card[col].sum()) * normalize
 
         return punch_card
 
-    def __del__(self):
+    def __del__(self) -> None:
         """
-
         :return:
         """
-
         for repo in self.repos:
             repo.__del__()
 
@@ -750,18 +773,24 @@ class GitHubProfile(ProjectDirectory):
     """
     An extension of the ProjectDirectory object that is based off of a single github.com user's public profile.
     """
-    def __init__(self, username, ignore_forks=False, ignore_repos=None, verbose=False):
+
+    def __init__(self, username: str, ignore_forks=False, ignore_repos=None, verbose: bool = False):
         """
 
         :param username:
         :return:
         """
-
+        import urllib.request
         # pull the git urls from github's api
-        uri = 'https://api.github.com/users/%s/repos' % username
-        data = requests.get(uri)
-        repos = []
-        for chunk in data.json():
+        uri = f'https://api.github.com/users/{username}/repos'
+        req = urllib.request.Request(uri)
+
+        with urllib.request.urlopen(req) as response:
+            content: bytes = response.read()
+            json_content: GithubJson = json.loads(content)
+
+        repos: List[str] = []
+        for chunk in json_content:
             # if we are skipping forks
             if ignore_forks:
                 if not chunk['fork']:
@@ -769,4 +798,5 @@ class GitHubProfile(ProjectDirectory):
             else:
                 repos.append(chunk['git_url'])
 
-        ProjectDirectory.__init__(self, working_dir=repos, ignore_repos=ignore_repos, verbose=verbose)
+        ProjectDirectory.__init__(
+            self, working_dir=repos, ignore_repos=ignore_repos, verbose=verbose)

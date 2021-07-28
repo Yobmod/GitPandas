@@ -1,12 +1,4 @@
-"""
-.. module:: repository
-   :platform: Unix, Windows
-   :synopsis: A module for examining a single git repository
-
-.. moduleauthor:: Will McGinnis <will@pedalwrencher.com>
-
-
-"""
+"""."""
 
 import os
 import sys
@@ -17,17 +9,18 @@ import logging
 import tempfile
 import fnmatch
 import shutil
+from typing import List, Union
 import warnings
 import numpy as np
 from git import Repo, GitCommandError
-from gitpandas.cache import multicache, EphemeralCache, RedisDFCache
+from gitpandas.cache import multicache  # , EphemeralCache, RedisDFCache
 from pandas import DataFrame, to_datetime
 
 try:
-    from joblib import delayed, Parallel
+    from joblib import delayed, Parallel        # type: ignore
 
     _has_joblib = True
-except ImportError as e:
+except ImportError:
     _has_joblib = False
 
 __author__ = 'willmcginnis'
@@ -45,9 +38,9 @@ def _parallel_cumulative_blame_func(self_, x, committer, ignore_globs, include_g
     return x
 
 
-class Repository(object):
-    """
-    The base class for a generic git repository, from which to gather statistics.  The object encapulates a single
+class Repository():
+    """The base class for a generic git repository, from which to gather statistics.
+    The object encapulates a single
     gitpython Repo instance.
 
     :param working_dir: the directory of the git repository, meaning a .git directory is in it (default None=cwd)
@@ -57,7 +50,7 @@ class Repository(object):
     :return:
     """
 
-    def __init__(self, working_dir=None, verbose=False, tmp_dir=None, cache_backend=None):
+    def __init__(self, working_dir: Union[str, None] = None, verbose=False, tmp_dir=None, cache_backend=None):
         self.verbose = verbose
         self.log = logging.getLogger('gitpandas')
         self.__delete_hook = False
@@ -68,13 +61,15 @@ class Repository(object):
                 # if a tmp dir is passed, clone into that, otherwise make a temp directory.
                 if tmp_dir is None:
                     if self.verbose:
-                        print('cloning repository: %s into a temporary location' % (working_dir,))
+                        print('cloning repository: %s into a temporary location' % (
+                            working_dir,))
                     dir_path = tempfile.mkdtemp()
                 else:
                     dir_path = tmp_dir
 
                 self.repo = Repo.clone_from(working_dir, dir_path)
-                self._git_repo_name = working_dir.split(os.sep)[-1].split('.')[0]
+                self._git_repo_name = working_dir.split(
+                    os.sep)[-1].split('.')[0]
                 self.git_dir = dir_path
                 self.__delete_hook = True
             else:
@@ -85,7 +80,8 @@ class Repository(object):
             self.repo = Repo(self.git_dir)
 
         if self.verbose:
-            print('Repository [%s] instantiated at directory: %s' % (self._repo_name(), self.git_dir))
+            print('Repository [%s] instantiated at directory: %s' % (
+                self._repo_name(), self.git_dir))
 
     def __del__(self):
         """
@@ -156,35 +152,41 @@ class Repository(object):
                 with open(filename, 'r') as f:
                     for idx, _ in enumerate(f):
                         pass
-            except FileNotFoundError as e:
+            except FileNotFoundError:
                 if self.verbose:
-                    warnings.warn('Could not find file %s for coverage' % (filename, ))
+                    warnings.warn(
+                        'Could not find file %s for coverage' % (filename, ))
 
             num_lines = idx + 1
 
             try:
                 short_filename = filename.split(self.git_dir + os.sep)[1]
-                ds.append([short_filename, len(cov['lines'][filename]), num_lines])
-            except IndexError as e:
+                ds.append([short_filename, len(
+                    cov['lines'][filename]), num_lines])
+            except IndexError:
                 if self.verbose:
-                    warnings.warn('Could not find file %s for coverage' % (filename, ))
+                    warnings.warn(
+                        'Could not find file %s for coverage' % (filename, ))
 
-        df = DataFrame(ds, columns=['filename', 'lines_covered', 'total_lines'])
+        df = DataFrame(
+            ds, columns=['filename', 'lines_covered', 'total_lines'])
         df['coverage'] = df['lines_covered'] / df['total_lines']
 
         return df
 
-    def hours_estimate(self, branch='master', grouping_window=0.5, single_commit_hours=0.5, limit=None, days=None,
-                       committer=True, ignore_globs=None, include_globs=None):
+    def hours_estimate(self, branch: str = 'master', grouping_window: float = 0.5, single_commit_hours: float = 0.5,
+                       limit: int = 0, days: int = 0,
+                       committer: float = True, ignore_globs=None, include_globs=None):
         """
-        inspired by: https://github.com/kimmobrunfeldt/git-hours/blob/8aaeee237cb9d9028e7a2592a25ad8468b1f45e4/index.js#L114-L143
+        https://github.com/kimmobrunfeldt/git-hours/blob/8aaeee237cb9d9028e7a2592a25ad8468b1f45e4/index.js#L114-L143
 
         Iterates through the commit history of repo to estimate the time commitement of each author or committer over
         the course of time indicated by limit/extensions/days/etc.
 
         :param branch: the branch to return commits for
         :param limit: (optional, default=None) a maximum number of commits to return, None for no limit
-        :param grouping_window: (optional, default=0.5 hours) the threhold for how close two commits need to be to consider them part of one coding session
+        :param grouping_window: (optional, default=0.5 hours) the threhold for how close two commits need to be to
+            consider them part of one coding session
         :param single_commit_hours: (optional, default 0.5 hours) the time range to associate with one single commit
         :param days: (optional, default=None) number of days to return, if limit is None
         :param committer: (optional, default=True) whether to use committer vs. author
@@ -210,13 +212,14 @@ class Repository(object):
         ds = []
         for person in people:
             commits = ch[ch[by] == person]
-            commits_ts = [x * 10e-10 for x in sorted(commits.index.values.tolist())]
+            commits_ts: List[float] = [
+                x * 10e-10 for x in sorted(commits.index.values.tolist())]
 
             if len(commits_ts) < 2:
                 ds.append([person, 0])
                 continue
 
-            def estimate(index, date):
+            def estimate(index: int, date: float) -> float:
                 next_ts = commits_ts[index + 1]
                 diff_in_minutes = next_ts - date
                 diff_in_minutes /= 60.0
@@ -224,15 +227,15 @@ class Repository(object):
                     return diff_in_minutes / 60.0
                 return first_commit_addition_in_minutes / 60.0
 
-            hours = [estimate(a, b) for a, b in enumerate(commits_ts[:-1])]
-            hours = sum(hours)
+            hours_list = [estimate(a, b) for a, b in enumerate(commits_ts[:-1])]
+            hours = round(sum(hours_list), 2)
             ds.append([person, hours])
 
         df = DataFrame(ds, columns=[by, 'hours'])
 
         return df
 
-    def commit_history(self, branch='master', limit=None, days=None, ignore_globs=None, include_globs=None):
+    def commit_history(self, branch: str = 'master', limit: int = 0, days: int = 0, ignore_globs=None, include_globs=None):
         """
         Returns a pandas DataFrame containing all of the commits for a given branch. Included in that DataFrame will be
         the columns:
@@ -255,15 +258,16 @@ class Repository(object):
         """
 
         # setup the data-set of commits
-        if limit is None:
-            if days is None:
+        if not limit:
+            if not days:
                 ds = [[
-                          x.author.name,
-                          x.committer.name,
-                          x.committed_date,
-                          x.message,
-                          self.__check_extension(x.stats.files, ignore_globs=ignore_globs, include_globs=include_globs)
-                      ] for x in self.repo.iter_commits(branch, max_count=sys.maxsize)]
+                    x.author.name,
+                    x.committer.name,
+                    x.committed_date,
+                    x.message,
+                    self.__check_extension(
+                        x.stats.files, ignore_globs=ignore_globs, include_globs=include_globs)
+                ] for x in self.repo.iter_commits(branch, max_count=sys.maxsize)]
             else:
                 ds = []
                 c_date = time.time()
@@ -271,10 +275,7 @@ class Repository(object):
                 dlim = time.time() - days * 24 * 3600
                 while c_date > dlim:
                     try:
-                        if sys.version_info.major == 2:
-                            x = commits.next()
-                        else:
-                            x = commits.__next__()
+                        x = next(commits)
                     except StopIteration:
                         break
                     c_date = x.committed_date
@@ -290,16 +291,18 @@ class Repository(object):
 
         else:
             ds = [[
-                      x.author.name,
-                      x.committer.name,
-                      x.committed_date,
-                      x.message,
-                      self.__check_extension(x.stats.files, ignore_globs=ignore_globs, include_globs=include_globs)
-                  ] for x in self.repo.iter_commits(branch, max_count=limit)]
+                x.author.name,
+                x.committer.name,
+                x.committed_date,
+                x.message,
+                self.__check_extension(
+                    x.stats.files, ignore_globs=ignore_globs, include_globs=include_globs)
+            ] for x in self.repo.iter_commits(branch, max_count=limit)]
 
         # aggregate stats
         ds = [x[:-1] + [sum([x[-1][key]['lines'] for key in x[-1].keys()]),
-                        sum([x[-1][key]['insertions'] for key in x[-1].keys()]),
+                        sum([x[-1][key]['insertions']
+                            for key in x[-1].keys()]),
                         sum([x[-1][key]['deletions'] for key in x[-1].keys()]),
                         sum([x[-1][key]['insertions'] for key in x[-1].keys()]) - sum(
                             [x[-1][key]['deletions'] for key in x[-1].keys()])
@@ -310,12 +313,13 @@ class Repository(object):
                        columns=['author', 'committer', 'date', 'message', 'lines', 'insertions', 'deletions', 'net'])
 
         # format the date col and make it the index
-        df['date'] = to_datetime(df['date'].map(datetime.datetime.fromtimestamp))
+        df['date'] = to_datetime(df['date'].map(
+            datetime.datetime.fromtimestamp))
         df.set_index(keys=['date'], drop=True, inplace=True)
 
         return df
 
-    def file_change_history(self, branch='master', limit=None, days=None, ignore_globs=None, include_globs=None):
+    def file_change_history(self, branch='master', limit: int = 0, days: int = 0, ignore_globs=None, include_globs=None):
         """
         Returns a DataFrame of all file changes (via the commit history) for the specified branch.  This is similar to
         the commit history DataFrame, but is one row per file edit rather than one row per commit (which may encapsulate
@@ -330,24 +334,25 @@ class Repository(object):
          * deletions
 
         :param branch: the branch to return commits for
-        :param limit: (optional, default=None) a maximum number of commits to return, None for no limit
+        :param limit: (optional, default=0) a maximum number of commits to return, 0 for no limit
         :param days: (optional, default=None) number of days to return if limit is None
         :param ignore_globs: (optional, default=None) a list of globs to ignore, default none excludes nothing
         :param include_globs: (optinal, default=None) a list of globs to include, default of None includes everything.
         :return: DataFrame
         """
-
+        assert isinstance(limit, int) and limit > 0, "limit must be a positive integer"
         # setup the dataset of commits
-        if limit is None:
+        if limit == 0 or limit is None:
             if days is None:
                 ds = [[
-                          x.author.name,
-                          x.committer.name,
-                          x.committed_date,
-                          x.message,
-                          x.name_rev.split()[0],
-                          self.__check_extension(x.stats.files, ignore_globs=ignore_globs, include_globs=include_globs)
-                      ] for x in self.repo.iter_commits(branch, max_count=sys.maxsize)]
+                    x.author.name,
+                    x.committer.name,
+                    x.committed_date,
+                    x.message,
+                    x.name_rev.split()[0],
+                    self.__check_extension(
+                        x.stats.files, ignore_globs=ignore_globs, include_globs=include_globs)
+                ] for x in self.repo.iter_commits(branch, max_count=sys.maxsize)]
             else:
                 ds = []
                 c_date = time.time()
@@ -376,13 +381,14 @@ class Repository(object):
 
         else:
             ds = [[
-                      x.author.name,
-                      x.committer.name,
-                      x.committed_date,
-                      x.message,
-                      x.name_rev.split()[0],
-                      self.__check_extension(x.stats.files, ignore_globs=ignore_globs, include_globs=include_globs)
-                  ] for x in self.repo.iter_commits(branch, max_count=limit)]
+                x.author.name,
+                x.committer.name,
+                x.committed_date,
+                x.message,
+                x.name_rev.split()[0],
+                self.__check_extension(
+                    x.stats.files, ignore_globs=ignore_globs, include_globs=include_globs)
+            ] for x in self.repo.iter_commits(branch, max_count=limit)]
 
         ds = [x[:-1] + [fn, x[-1][fn]['insertions'], x[-1][fn]['deletions']] for x in ds for fn in x[-1].keys() if
               len(x[-1].keys()) > 0]
@@ -392,13 +398,14 @@ class Repository(object):
                        columns=['author', 'committer', 'date', 'message', 'rev', 'filename', 'insertions', 'deletions'])
 
         # format the date col and make it the index
-        df['date'] = to_datetime(df['date'].map(datetime.datetime.fromtimestamp))
+        df['date'] = to_datetime(df['date'].map(
+            datetime.datetime.fromtimestamp))
         df.set_index(keys=['date'], drop=True, inplace=True)
 
         return df
 
-    def file_change_rates(self, branch='master', limit=None, coverage=False, days=None, ignore_globs=None,
-                          include_globs=None):
+    def file_change_rates(self, branch: str = 'master', limit: int = 0, coverage: bool = False, days: int = 0,
+                          ignore_globs=None, include_globs=None):
         """
         This function will return a DataFrame containing some basic aggregations of the file change history data, and
         optionally test coverage data from a coverage_data.py .coverage file.  The aim here is to identify files in the
@@ -406,7 +413,7 @@ class Repository(object):
         a high change rate and poor test coverage, then it is a great candidate for writing more tests.
 
         :param branch: (optional, default=master) the branch to return commits for
-        :param limit: (optional, default=None) a maximum number of commits to return, None for no limit
+        :param limit: (optional, default=0) a maximum number of commits to return, 0 for no limit
         :param coverage: (optional, default=False) a bool for whether or not to attempt to join in coverage data.
         :param days: (optional, default=None) number of days to return if limit is None
         :param ignore_globs: (optional, default=None) a list of globs to ignore, default none excludes nothing
@@ -435,7 +442,8 @@ class Repository(object):
                 }
             )
 
-            file_history.columns = [' '.join(col).strip() for col in file_history.columns.values]
+            file_history.columns = [
+                ' '.join(col).strip() for col in file_history.columns.values]
 
             file_history = file_history.rename(columns={
                 'message <lambda>': 'messages',
@@ -452,22 +460,29 @@ class Repository(object):
             })
 
             # get some building block values for later use
-            file_history['net_change'] = file_history['total_insertions'] - file_history['total_deletions']
-            file_history['abs_change'] = file_history['total_insertions'] + file_history['total_deletions']
-            file_history['delta_time'] = file_history['max_date'] - file_history['min_date']
+            file_history['net_change'] = file_history['total_insertions'] - \
+                file_history['total_deletions']
+            file_history['abs_change'] = file_history['total_insertions'] + \
+                file_history['total_deletions']
+            file_history['delta_time'] = file_history['max_date'] - \
+                file_history['min_date']
 
             try:
                 file_history['delta_days'] = file_history['delta_time'].map(
                     lambda x: np.ceil(x.seconds / (24 * 3600) + 0.01))
-            except AttributeError as e:
+            except AttributeError:
                 file_history['delta_days'] = file_history['delta_time'].map(
                     lambda x: np.ceil((float(x.total_seconds()) * 10e-6) / (24 * 3600) + 0.01))
 
             # calculate metrics
-            file_history['net_rate_of_change'] = file_history['net_change'] / file_history['delta_days']
-            file_history['abs_rate_of_change'] = file_history['abs_change'] / file_history['delta_days']
-            file_history['edit_rate'] = file_history['abs_rate_of_change'] - file_history['net_rate_of_change']
-            file_history['unique_committers'] = file_history['committers'].map(lambda x: len(set(x.split(','))))
+            file_history['net_rate_of_change'] = file_history['net_change'] / \
+                file_history['delta_days']
+            file_history['abs_rate_of_change'] = file_history['abs_change'] / \
+                file_history['delta_days']
+            file_history['edit_rate'] = file_history['abs_rate_of_change'] - \
+                file_history['net_rate_of_change']
+            file_history['unique_committers'] = file_history['committers'].map(
+                lambda x: len(set(x.split(','))))
 
             # reindex
             file_history = file_history.reindex(
@@ -476,8 +491,10 @@ class Repository(object):
             file_history.sort_values(by=['edit_rate'], inplace=True)
 
             if coverage and self.has_coverage():
-                file_history = file_history.merge(self.coverage(), left_index=True, right_on='filename', how='outer')
-                file_history.set_index(keys=['filename'], drop=True, inplace=True)
+                file_history = file_history.merge(
+                    self.coverage(), left_index=True, right_on='filename', how='outer')
+                file_history.set_index(
+                    keys=['filename'], drop=True, inplace=True)
         else:
             file_history = DataFrame(
                 columns=['unique_committers', 'abs_rate_of_change', 'net_rate_of_change', 'net_change', 'abs_change',
@@ -503,12 +520,14 @@ class Repository(object):
         for key in files.keys():
             # count up the number of patterns in the ignore globs list that match
             if ignore_globs is not None:
-                count_exclude = sum([1 if fnmatch.fnmatch(key, g) else 0 for g in ignore_globs])
+                count_exclude = sum([1 if fnmatch.fnmatch(
+                    key, g) else 0 for g in ignore_globs])
             else:
                 count_exclude = 0
 
             # count up the number of patterns in the include globs list that match
-            count_include = sum([1 if fnmatch.fnmatch(key, g) else 0 for g in include_globs])
+            count_include = sum([1 if fnmatch.fnmatch(
+                key, g) else 0 for g in include_globs])
 
             # if we have one vote or more to include and none to exclude, then we use the file.
             if count_include > 0 and count_exclude == 0:
@@ -519,7 +538,8 @@ class Repository(object):
     @multicache(
         key_prefix='blame',
         key_list=['rev', 'committer', 'by', 'ignore_blobs', 'include_globs'],
-        skip_if=lambda x: True if x.get('rev') is None or x.get('rev') == 'HEAD' else False
+        skip_if=lambda x: True if x.get(
+            'rev') is None or x.get('rev') == 'HEAD' else False
     )
     def blame(self, rev='HEAD', committer=True, by='repository', ignore_globs=None, include_globs=None):
         """
@@ -578,7 +598,7 @@ class Repository(object):
 
         return blames
 
-    def revs(self, branch='master', limit=None, skip=None, num_datapoints=None):
+    def revs(self, branch: str = 'master', limit: int = 0, skip: int = 0, num_datapoints: int = 0):
         """
         Returns a dataframe of all revision tags and their timestamps. It will have the columns:
 
@@ -602,7 +622,8 @@ class Repository(object):
             elif skip is not None:
                 limit = limit * skip
 
-        ds = [[x.committed_date, x.name_rev.split(' ')[0]] for x in self.repo.iter_commits(branch, max_count=limit)]
+        ds = [[x.committed_date, x.name_rev.split(
+            ' ')[0]] for x in self.repo.iter_commits(branch, max_count=limit)]
         df = DataFrame(ds, columns=['date', 'rev'])
 
         if skip is not None:
@@ -618,7 +639,7 @@ class Repository(object):
 
         return df
 
-    def cumulative_blame(self, branch='master', limit=None, skip=None, num_datapoints=None, committer=True,
+    def cumulative_blame(self, branch: str = 'master', limit: int = 0, skip: int = 0, num_datapoints: int = 0, committer: bool = True,
                          ignore_globs=None, include_globs=None):
         """
         Returns the blame at every revision of interest. Index is a datetime, column per committer, with number of lines
@@ -635,13 +656,16 @@ class Repository(object):
 
         """
 
-        revs = self.revs(branch=branch, limit=limit, skip=skip, num_datapoints=num_datapoints)
+        revs = self.revs(branch=branch, limit=limit, skip=skip,
+                         num_datapoints=num_datapoints)
 
         # get the commit history to stub out committers (hacky and slow)
         if sys.version_info.major == 2:
-            committers = set([x.committer.name for x in self.repo.iter_commits(branch, max_count=sys.maxsize)])
+            committers = set([x.committer.name for x in self.repo.iter_commits(
+                branch, max_count=sys.maxsize)])
         else:
-            committers = {x.committer.name for x in self.repo.iter_commits(branch, max_count=sys.maxsize)}
+            committers = {x.committer.name for x in self.repo.iter_commits(
+                branch, max_count=sys.maxsize)}
 
         for y in committers:
             revs[y] = 0
@@ -653,9 +677,10 @@ class Repository(object):
         for idx, row in revs.iterrows():
             if self.verbose:
                 print('%s. [%s] getting blame for rev: %s' % (
-                str(idx), datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'), row.rev,))
+                    str(idx), datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'), row.rev,))
 
-            blame = self.blame(rev=row.rev, committer=committer, ignore_globs=ignore_globs, include_globs=include_globs)
+            blame = self.blame(rev=row.rev, committer=committer,
+                               ignore_globs=ignore_globs, include_globs=include_globs)
             for y in committers:
                 try:
                     loc = blame.loc[y, 'loc']
@@ -665,7 +690,8 @@ class Repository(object):
 
         del revs['rev']
 
-        revs['date'] = to_datetime(revs['date'].map(datetime.datetime.fromtimestamp))
+        revs['date'] = to_datetime(
+            revs['date'].map(datetime.datetime.fromtimestamp))
         revs.set_index(keys=['date'], drop=True, inplace=True)
         revs = revs.fillna(0.0)
 
@@ -686,8 +712,9 @@ class Repository(object):
 
         return revs
 
-    def parallel_cumulative_blame(self, branch='master', limit=None, skip=None, num_datapoints=None, committer=True,
-                                  workers=1, ignore_globs=None, include_globs=None):
+    def parallel_cumulative_blame(self, branch: str = 'master', limit: int = 0, skip: int = 0, num_datapoints: int = 0,
+                                  committer: bool = True,
+                                  workers: int = 1, ignore_globs=None, include_globs=None):
         """
         Returns the blame at every revision of interest. Index is a datetime, column per committer, with number of lines
         blamed to each committer at each timestamp as data.
@@ -708,7 +735,8 @@ class Repository(object):
             raise ImportError('''Must have joblib installed to use parallel_cumulative_blame(), please use
             cumulative_blame() instead.''')
 
-        revs = self.revs(branch=branch, limit=limit, skip=skip, num_datapoints=num_datapoints)
+        revs = self.revs(branch=branch, limit=limit, skip=skip,
+                         num_datapoints=num_datapoints)
 
         if self.verbose:
             print('Beginning processing for cumulative blame:')
@@ -724,7 +752,8 @@ class Repository(object):
         revs = DataFrame(ds)
         del revs['rev']
 
-        revs['date'] = to_datetime(revs['date'].map(datetime.datetime.fromtimestamp))
+        revs['date'] = to_datetime(
+            revs['date'].map(datetime.datetime.fromtimestamp))
         revs.set_index(keys=['date'], drop=True, inplace=True)
         revs = revs.fillna(0.0)
 
@@ -764,9 +793,11 @@ class Repository(object):
         # then the remotes
         remote_branches = self.repo.git.branch(all=True).split('\n')
         if sys.version_info.major == 2:
-            remote_branches = set([x.split('/')[-1] for x in remote_branches if 'remotes' in x])
+            remote_branches = set([x.split('/')[-1]
+                                  for x in remote_branches if 'remotes' in x])
         else:
-            remote_branches = {x.split('/')[-1] for x in remote_branches if 'remotes' in x}
+            remote_branches = {x.split('/')[-1]
+                               for x in remote_branches if 'remotes' in x}
 
         data += [[x, False] for x in remote_branches]
 
@@ -795,7 +826,7 @@ class Repository(object):
     def repo_name(self):
         return self._repo_name()
 
-    def _repo_name(self):
+    def _repo_name(self) -> str:
         """
         Returns the name of the repository, using the local directory name.
 
@@ -805,7 +836,7 @@ class Repository(object):
         if self._git_repo_name is not None:
             return self._git_repo_name
         else:
-            reponame = self.repo.git_dir.split(os.sep)[-2]
+            reponame = str(self.repo.git_dir).split(os.sep)[-2]
             if reponame.strip() == '':
                 return 'unknown_repo'
             return reponame
@@ -841,7 +872,8 @@ class Repository(object):
         if by == 'file':
             raise NotImplementedError('File-wise bus factor')
 
-        blame = self.blame(include_globs=include_globs, ignore_globs=ignore_globs, by=by)
+        blame = self.blame(include_globs=include_globs,
+                           ignore_globs=ignore_globs, by=by)
         blame = blame.sort_values(by=['loc'], ascending=False)
 
         total = blame['loc'].sum()
@@ -899,7 +931,8 @@ class Repository(object):
     @multicache(
         key_prefix='file_detail',
         key_list=['include_globs', 'ignore_globs', 'rev', 'committer'],
-        skip_if=lambda x: True if x.get('rev') is None or x.get('rev') == 'HEAD' else False
+        skip_if=lambda x: True if x.get(
+            'rev') is None or x.get('rev') == 'HEAD' else False
     )
     def file_detail(self, include_globs=None, ignore_globs=None, rev='HEAD', committer=True):
         """
@@ -929,7 +962,8 @@ class Repository(object):
         df = df.reset_index(level=1)
 
         # map in file owners
-        df['file_owner'] = df['file'].map(lambda x: self.file_owner(rev, x, committer=committer))
+        df['file_owner'] = df['file'].map(
+            lambda x: self.file_owner(rev, x, committer=committer))
 
         # add extension (something like the language)
         df['ext'] = df['file'].map(lambda x: x.split('.')[-1])
@@ -942,7 +976,7 @@ class Repository(object):
 
         return df
 
-    def punchcard(self, branch='master', limit=None, days=None, by=None, normalize=None, ignore_globs=None,
+    def punchcard(self, branch: str = 'master', limit: int = 0, days: int = 0, by: str = '', normalize=None, ignore_globs=None,
                   include_globs=None):
         """
         Returns a pandas DataFrame containing all of the data for a punchcard.
@@ -992,7 +1026,8 @@ class Repository(object):
         # normalize all cols
         if normalize is not None:
             for col in ['lines', 'insertions', 'deletions', 'net']:
-                punch_card[col] = (punch_card[col] / punch_card[col].sum()) * normalize
+                punch_card[col] = (punch_card[col] /
+                                   punch_card[col].sum()) * normalize
 
         return punch_card
 

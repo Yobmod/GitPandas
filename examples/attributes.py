@@ -34,7 +34,8 @@ def repository():
 
 def project():
     # build an example project directory object then check the attributes
-    p = ProjectDirectory(['git://github.com/wdm0006/git-pandas.git', 'git://github.com/CamDavidsonPilon/lifelines.git'])
+    p = ProjectDirectory(['git://github.com/wdm0006/git-pandas.git',
+                         'git://github.com/CamDavidsonPilon/lifelines.git'])
     print('\nProject Directory Name')
     print(p.repo_name())
     print('\nProject Directory Branches:')

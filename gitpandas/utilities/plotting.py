@@ -9,11 +9,11 @@
 """
 
 try:
-    import matplotlib.pyplot as plt
-    import matplotlib.style
+    import matplotlib.pyplot as plt     # type: ignore
+    import matplotlib.style             # type: ignore
     matplotlib.style.use('ggplot')
     HAS_MPL = True
-except ImportError as e:
+except ImportError:
     HAS_MPL = False
 
 __author__ = 'willmcginnis'
@@ -30,7 +30,8 @@ def plot_punchcard(df, metric='lines', title='punchcard', by=None):
     """
 
     if not HAS_MPL:
-        raise ImportError('Must have matplotlib installed to use the plotting functions')
+        raise ImportError(
+            'Must have matplotlib installed to use the plotting functions')
 
     # find how many plots we are making
     if by is not None:
@@ -46,11 +47,13 @@ def plot_punchcard(df, metric='lines', title='punchcard', by=None):
         ax = fig.add_subplot('111', facecolor='#ffffff')
         fig.subplots_adjust(left=0.06, bottom=0.04, right=0.98, top=0.95)
         if by is not None:
-            ax.set_title(title + ' (%s)' % (str(val), ), y=0.96).set_color('#333333')
+            ax.set_title(title + ' (%s)' % (str(val), ),
+                         y=0.96).set_color('#333333')
         else:
             ax.set_title(title, y=0.96).set_color('#333333')
         ax.set_frame_on(False)
-        ax.scatter(sub_df['hour_of_day'], sub_df['day_of_week'], s=sub_df[metric], c='#333333', edgecolor='#333333')
+        ax.scatter(sub_df['hour_of_day'], sub_df['day_of_week'],
+                   s=sub_df[metric], c='#333333', edgecolor='#333333')
         for line in ax.get_xticklines() + ax.get_yticklines():
             line.set_alpha(0.0)
         dist = -0.8
@@ -81,7 +84,8 @@ def plot_cumulative_blame(df):
     """
 
     if not HAS_MPL:
-        raise ImportError('Must have matplotlib installed to use the plotting functions')
+        raise ImportError(
+            'Must have matplotlib installed to use the plotting functions')
 
     ax = df.plot(kind='area', stacked=True)
     plt.title('Cumulative Blame')

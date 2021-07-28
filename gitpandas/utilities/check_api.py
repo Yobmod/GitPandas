@@ -48,7 +48,8 @@ def get_signatures(m, remove_self=True, include_docstring=True):
                             'docstring': parse_docstring(v.__doc__)
                         }
                     else:
-                        out[str(key) + '.' + k] = {'args': [x for x in list(inspect.getargspec(v).args) if x not in excludes]}
+                        out[str(key) + '.' +
+                            k] = {'args': [x for x in list(inspect.getargspec(v).args) if x not in excludes]}
                 except Exception:
                     pass
         except Exception:
@@ -68,6 +69,7 @@ def get_distinct_params(m):
     for k in m.keys():
         out.update(m[k]['args'])
     return out
+
 
 if __name__ == '__main__':
     sigs = get_signatures(extract_objects(module))

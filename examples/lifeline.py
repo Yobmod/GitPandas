@@ -1,7 +1,7 @@
 from gitpandas import Repository
 import numpy as np
-import lifelines
-import matplotlib.pyplot as plt
+import lifelines  # type: ignore
+import matplotlib.pyplot as plt     # type: ignore
 plt.style.use('ggplot')
 
 __author__ = 'willmcginnis'
@@ -9,7 +9,8 @@ __author__ = 'willmcginnis'
 
 if __name__ == '__main__':
     threshold = 100
-    repo = Repository(working_dir='git://github.com/scikit-learn/scikit-learn.git', verbose=True)
+    repo = Repository(
+        working_dir='git://github.com/scikit-learn/scikit-learn.git', verbose=True)
     fch = repo.file_change_history(limit=None, include_globs=['*.py'])
 
     fch['file_owner'] = ''
@@ -21,7 +22,8 @@ if __name__ == '__main__':
 
     # add in the file owner and whether or not each item is a refactor
     for idx, row in fch.iterrows():
-        fch.set_value(idx, 'file_owner', repo.file_owner(row.rev, row.filename))
+        fch.set_value(idx, 'file_owner',
+                      repo.file_owner(row.rev, row.filename))
         if abs(row.insertions - row.deletions) > threshold:
             fch.set_value(idx, 'refactor', 1)
         else:
@@ -31,7 +33,8 @@ if __name__ == '__main__':
     fch['time_until_refactor'] = 0
     for idx, row in fch.iterrows():
         ts = None
-        chunk = fch[(fch['timestamp'] > row.timestamp) & (fch['refactor'] == 1) & (fch['filename'] == row.filename)]
+        chunk = fch[(fch['timestamp'] > row.timestamp) & (
+            fch['refactor'] == 1) & (fch['filename'] == row.filename)]
         if chunk.shape[0] > 0:
             ts = chunk['timestamp'].min()
             fch.set_value(idx, 'observed', True)
@@ -50,12 +53,12 @@ if __name__ == '__main__':
         if sample.shape[0] > 500:
             print('Evaluating %s' % (filename, ))
             kmf = lifelines.KaplanMeierFitter()
-            kmf.fit(sample['time_until_refactor'].values, event_observed=sample['observed'], timeline=list(range(365)), label=filename)
+            kmf.fit(sample['time_until_refactor'].values,
+                    event_observed=sample['observed'],
+                    timeline=list(
+                range(365)), label=filename)
             ax = kmf.survival_function_.plot(ax=ax)
 
     plt.title('Survival function of file owners (thres=%s)' % (threshold, ))
     plt.xlabel('Lifetime (days)')
     plt.show()
-
-
-

@@ -1,9 +1,9 @@
 from __future__ import absolute_import
 import pandas as pd
 try:
-    import redis
+    import redis            # type: ignore
     _HAS_REDIS = True
-except ImportError as e:
+except ImportError:
     _HAS_REDIS = False
 
 
@@ -17,7 +17,8 @@ def multicache(key_prefix, key_list, skip_if=None):
                     if skip_if(kwargs):
                         return func(self, *args, **kwargs)
 
-                key = key_prefix + self.repo_name + '_'.join([str(kwargs.get(k)) for k in key_list])
+                key = key_prefix + self.repo_name + \
+                    '_'.join([str(kwargs.get(k)) for k in key_list])
                 try:
                     if isinstance(self.cache_backend, EphemeralCache):
                         ret = self.cache_backend.get(key)
@@ -27,7 +28,7 @@ def multicache(key_prefix, key_list, skip_if=None):
                         return ret
                     else:
                         raise ValueError('Unknown cache backend type')
-                except CacheMissException as e:
+                except CacheMissException:
                     ret = func(self, *args, **kwargs)
                     self.cache_backend.set(key, ret)
                     return ret
@@ -45,8 +46,9 @@ class EphemeralCache():
     An in-memory ephemeral cache. Basically just a dictionary of saved results.
 
     """
+
     def __init__(self):
-        self._cache = dict()
+        self._cache = {}
 
     def set(self, k, v):
         self._cache[k] = v
@@ -72,6 +74,7 @@ class RedisDFCache():
     :param ttl: time to live for any cached results, default None
     :param kwargs: additional options available to redis.StrictRedis
     """
+
     def __init__(self, host='localhost', port=6379, db=12, max_keys=1000, ttl=None, **kwargs):
         if not _HAS_REDIS:
             raise ImportError('Need redis installed to use redis cache')
@@ -95,7 +98,7 @@ class RedisDFCache():
             idx = self._key_list.index(k)
             self._key_list.pop(idx)
             self._key_list.append(k)
-        except ValueError as e:
+        except ValueError:
             self._key_list.append(k)
 
         self._cache.set(k, v.to_msgpack(compress='zlib'), ex=self.ttl)
@@ -111,7 +114,7 @@ class RedisDFCache():
             try:
                 idx = self._key_list.index(k)
                 self._key_list.pop(idx)
-            except ValueError as e:
+            except ValueError:
                 pass
             raise CacheMissException(k)
 
@@ -120,7 +123,7 @@ class RedisDFCache():
         return self._cache.exists(k)
 
     def sync(self):
-        self._key_list = [x for x in self._cache.scan_iter("%s*" % (self.prefix, ))]
+        self._key_list = list(self._cache.scan_iter(self.prefix))
 
     def purge(self):
         for key in self._cache.scan_iter("%s*" % (self.prefix, )):

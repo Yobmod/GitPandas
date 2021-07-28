@@ -1,5 +1,6 @@
 """."""
 
+from typing import Dict, List, Sequence, Set, Union
 import json
 import math
 import os
@@ -8,16 +9,17 @@ import pandas as pd
 from git import GitCommandError
 from gitpandas.repository import Repository
 
-try:
-    from joblib import delayed, Parallel  # type: ignore
+# try:
+#     from joblib import delayed, Parallel  # type: ignore
 
-    _has_joblib = True
-except ImportError:
-    _has_joblib = False
+#     _has_joblib = True
+# except ImportError:
+#     _has_joblib = False
+
+_has_joblib = False
 
 # typing -----------------------------------------------------
 
-from typing import Dict, List, Sequence, Set, Union
 
 GithubJson = List[Dict[str, str]]
 # Union[str, int, bool, None, Dict]]]
@@ -425,12 +427,13 @@ class ProjectDirectory():
         df = pd.DataFrame(columns=['repository', 'local', 'branch'])
 
         if _has_joblib:
-            ds = Parallel(n_jobs=-1, backend='threading', verbose=0)(
-                delayed(_branches_func)
-                (x) for x in self.repos
-            )
-            for d in ds:
-                df = df.append(d)
+            pass
+            # ds = Parallel(n_jobs=-1, backend='threading', verbose=0)(
+            #     delayed(_branches_func)
+            #     (x) for x in self.repos
+            # )
+            # for d in ds:
+            #     df = df.append(d)
         else:
             for repo in self.repos:
                 try:
@@ -470,12 +473,13 @@ class ProjectDirectory():
         df = pd.DataFrame(columns=['repository', 'rev'])
 
         if _has_joblib:
-            ds = Parallel(n_jobs=-1, backend='threading', verbose=0)(
-                delayed(_revs_func)
-                (x, branch, limit, skip, num_datapoints) for x in self.repos
-            )
-            for d in ds:
-                df = df.append(d)
+            pass
+            # ds = Parallel(n_jobs=-1, backend='threading', verbose=0)(
+            #     delayed(_revs_func)
+            #     (x, branch, limit, skip, num_datapoints) for x in self.repos
+            # )
+            # for d in ds:
+            #     df = df.append(d)
         else:
             for repo in self.repos:
                 try:
@@ -588,12 +592,13 @@ class ProjectDirectory():
         df = pd.DataFrame(columns=['repository', 'tag'])
 
         if _has_joblib:
-            ds = Parallel(n_jobs=-1, backend='threading', verbose=0)(
-                delayed(_tags_func)
-                (x) for x in self.repos
-            )
-            for d in ds:
-                df = df.append(d)
+            pass
+            # ds = Parallel(n_jobs=-1, backend='threading', verbose=0)(
+            #     delayed(_tags_func)
+            #     (x) for x in self.repos
+            # )
+            # for d in ds:
+            #     df = df.append(d)
         else:
             for repo in self.repos:
                 try:

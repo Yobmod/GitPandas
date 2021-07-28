@@ -16,14 +16,14 @@ from git import Repo, GitCommandError
 from gitpandas.cache import multicache  # , EphemeralCache, RedisDFCache
 from pandas import DataFrame, to_datetime
 
-try:
-    from joblib import delayed, Parallel        # type: ignore
+# try:
+#     from joblib import delayed, Parallel        # type: ignore
 
-    _has_joblib = True
-except ImportError:
-    _has_joblib = False
+#     _has_joblib = True
+# except ImportError:
+#     _has_joblib = False
 
-__author__ = 'willmcginnis'
+_has_joblib = False
 
 
 def _parallel_cumulative_blame_func(self_, x, committer, ignore_globs, include_globs):
@@ -709,68 +709,68 @@ class Repository():
 
         return revs
 
-    def parallel_cumulative_blame(self, branch: str = 'master', limit: int = 0, skip: int = 0, num_datapoints: int = 0,
-                                  committer: bool = True,
-                                  workers: int = 1, ignore_globs=None, include_globs=None):
-        """
-        Returns the blame at every revision of interest. Index is a datetime, column per committer, with number of lines
-        blamed to each committer at each timestamp as data.
+    # def parallel_cumulative_blame(self, branch: str = 'master', limit: int = 0, skip: int = 0, num_datapoints: int = 0,
+    #                               committer: bool = True,
+    #                               workers: int = 1, ignore_globs=None, include_globs=None):
+    #     """
+    #     Returns the blame at every revision of interest. Index is a datetime, column per committer, with number of lines
+    #     blamed to each committer at each timestamp as data.
 
-        :param branch: (optional, default 'master') the branch to work in
-        :param limit: (optional, default None), the maximum number of revisions to return, None for no limit
-        :param skip: (optional, default None), the number of revisions to skip. Ex: skip=2 returns every other revision, None for no skipping.
-        :param num_datapoints: (optional, default=None) if limit and skip are none, and this isn't, then num_datapoints evenly spaced revs will be used
-        :param committer: (optional, defualt=True) true if committer should be reported, false if author
-        :param ignore_globs: (optional, default=None) a list of globs to ignore, default none excludes nothing
-        :param include_globs: (optinal, default=None) a list of globs to include, default of None includes everything.
-        :param workers: (optional, default=1) integer, the number of workers to use in the threadpool, -1 for one per core.
-        :return: DataFrame
+    #     :param branch: (optional, default 'master') the branch to work in
+    #     :param limit: (optional, default None), the maximum number of revisions to return, None for no limit
+    #     :param skip: (optional, default None), the number of revisions to skip. Ex: skip=2 returns every other revision, None for no skipping.
+    #     :param num_datapoints: (optional, default=None) if limit and skip are none, and this isn't, then num_datapoints evenly spaced revs will be used
+    #     :param committer: (optional, defualt=True) true if committer should be reported, false if author
+    #     :param ignore_globs: (optional, default=None) a list of globs to ignore, default none excludes nothing
+    #     :param include_globs: (optinal, default=None) a list of globs to include, default of None includes everything.
+    #     :param workers: (optional, default=1) integer, the number of workers to use in the threadpool, -1 for one per core.
+    #     :return: DataFrame
 
-        """
+    #     """
 
-        if not _has_joblib:
-            raise ImportError('''Must have joblib installed to use parallel_cumulative_blame(), please use
-            cumulative_blame() instead.''')
+    #     if not _has_joblib:
+    #         raise ImportError('''Must have joblib installed to use parallel_cumulative_blame(), please use
+    #         cumulative_blame() instead.''')
 
-        revs = self.revs(branch=branch, limit=limit, skip=skip,
-                         num_datapoints=num_datapoints)
+    #     revs = self.revs(branch=branch, limit=limit, skip=skip,
+    #                      num_datapoints=num_datapoints)
 
-        if self.verbose:
-            print('Beginning processing for cumulative blame:')
+    #     if self.verbose:
+    #         print('Beginning processing for cumulative blame:')
 
-        revisions = json.loads(revs.to_json(orient='index'))
-        revisions = [revisions[key] for key in revisions]
+    #     revisions = json.loads(revs.to_json(orient='index'))
+    #     revisions = [revisions[key] for key in revisions]
 
-        ds = Parallel(n_jobs=workers, backend='threading', verbose=5)(
-            delayed(_parallel_cumulative_blame_func)
-            (self, x, committer, ignore_globs, include_globs) for x in revisions
-        )
+    #     ds = Parallel(n_jobs=workers, backend='threading', verbose=5)(
+    #         delayed(_parallel_cumulative_blame_func)
+    #         (self, x, committer, ignore_globs, include_globs) for x in revisions
+    #     )
 
-        revs = DataFrame(ds)
-        del revs['rev']
+    #     revs = DataFrame(ds)
+    #     del revs['rev']
 
-        revs['date'] = to_datetime(
-            revs['date'].map(datetime.datetime.fromtimestamp))
-        revs.set_index(keys=['date'], drop=True, inplace=True)
-        revs = revs.fillna(0.0)
+    #     revs['date'] = to_datetime(
+    #         revs['date'].map(datetime.datetime.fromtimestamp))
+    #     revs.set_index(keys=['date'], drop=True, inplace=True)
+    #     revs = revs.fillna(0.0)
 
-        # drop 0 cols
-        for col in revs.columns.values:
-            if col != 'col':
-                if revs[col].sum() == 0:
-                    del revs[col]
+    #     # drop 0 cols
+    #     for col in revs.columns.values:
+    #         if col != 'col':
+    #             if revs[col].sum() == 0:
+    #                 del revs[col]
 
-        # drop 0 rows
-        keep_idx = []
-        committers = [x for x in revs.columns.values if x != 'date']
-        for idx, row in revs.iterrows():
-            if sum([row[x] for x in committers]) > 0:
-                keep_idx.append(idx)
+    #     # drop 0 rows
+    #     keep_idx = []
+    #     committers = [x for x in revs.columns.values if x != 'date']
+    #     for idx, row in revs.iterrows():
+    #         if sum([row[x] for x in committers]) > 0:
+    #             keep_idx.append(idx)
 
-        revs = revs.ix[keep_idx]
-        revs.sort_index(ascending=False, inplace=True)
+    #     revs = revs.ix[keep_idx]
+    #     revs.sort_index(ascending=False, inplace=True)
 
-        return revs
+    #     return revs
 
     def branches(self):
         """

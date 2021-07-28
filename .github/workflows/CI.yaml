@@ -34,8 +34,6 @@ jobs:
         pip install -r requirements.txt
         pip install -r test-requirements.txt
 
-        cat test/fixtures/.gitconfig >> ~/.gitconfig
-
     - name: Lint with flake8
       run: |
         set -x
